@@ -23,6 +23,7 @@ In this project, EEG signals were recorded from multiple subjects and processed 
 ├── shallow_neural_network_cleaned.py# Implementation of the ANN model
 ├── song_window.py                  # Interface for controlling music and EEG data collection
 ├── README.md                       # Project documentation
+```
 
 ## Installation
 
