@@ -8,6 +8,10 @@ from brainflow.board_shim import BoardShim, BrainFlowInputParams
 
 
 class DataAcquisitionThread(QThread):
+    # Emitted once the recording file is fully written and closed.
+    # Carries (csv_path, track_index) so the receiver plots under the correct track.
+    # Must be a class attribute: a pyqtSignal assigned inside __init__ does not work.
+    plot_signal = pyqtSignal(str, int)
 
     def __init__(self, serial_port, board_id, subject, current_track_index):
         super().__init__()
@@ -19,9 +23,7 @@ class DataAcquisitionThread(QThread):
         self.subject = subject
         self.current_track_index = current_track_index
         self._running = True
-
-        plot_signal = pyqtSignal(str)
-        self.latest_file_path = None  # Variable to store the latest file path
+        self.latest_file_path = None  # Path of the CSV written by this run
 
 
     def load_tracks(self):
@@ -57,18 +59,23 @@ class DataAcquisitionThread(QThread):
 
             try:
                 while self._running:
-                    data = self.board.get_board_data(250*1) ## (250 Hz @ 1sec) ##
+                    # Pull up to 250 latest samples. The board streams at 125 Hz,
+                    # so roughly 125 samples accumulate per 1 s loop.
+                    data = self.board.get_board_data(250)
                     for i in range(len(data[0])):
                         row = [str(float(data[channel][i])) for channel in
                                eeg_channels]  # Convert to float first, then to string
-                        row.append(self.current_track_index)  # Append the same letter for each row
+                        row.append(self.current_track_index)  # Tag every row with the track index
                         writer.writerow(row)
-
 
                     time.sleep(1)
             finally:
                 self.board.stop_stream()
                 self.board.release_session()
 
+        # The CSV is now closed and flushed; notify listeners so they can plot it.
+        self.plot_signal.emit(self.latest_file_path, self.current_track_index)
+
     def stop(self):
         self._running = False
+        self.wait()  # Block until run() finishes so the board session is released cleanly

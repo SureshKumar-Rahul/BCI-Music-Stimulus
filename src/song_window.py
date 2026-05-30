@@ -46,15 +46,11 @@ class MainWindow(QMainWindow):
         self.tracks = self.load_tracks()
         self.current_track_index = 0
         self.break_duration = 15  # Break duration in seconds
-        self.data_acquisition_thread = None
+        self.data_acquisition_thread = None  # EEG acquisition thread, created per track
         self.break_timer = QTimer(self)
         self.track_timer = QTimer(self)
-        self.data_acquisition_thread = None  # Initialize EEG data acquisition thread
         self.song_duration = 30
         self.setup_ui()
-
-        if self.data_acquisition_thread:
-            self.data_acquisition_thread.plot_signal.connect(self.generate_and_save_plot)
 
     def setup_ui(self):
         # Play button
@@ -128,7 +124,8 @@ class MainWindow(QMainWindow):
                                                                      board_id=BoardIds.CYTON_DAISY_BOARD.value,
                                                                      subject=int(self.subject.currentText()),
                                                                      current_track_index=self.current_track_index)
-
+                # Plot the recording once the thread finishes writing its CSV.
+                self.data_acquisition_thread.plot_signal.connect(self.generate_and_save_plot)
                 self.data_acquisition_thread.start()
 
             self.current_track_index += 1
@@ -142,7 +139,7 @@ class MainWindow(QMainWindow):
             if self.data_acquisition_thread and self.data_acquisition_thread.isRunning():
                 self.data_acquisition_thread.stop()
 
-    def generate_and_save_plot(self, file_path):
+    def generate_and_save_plot(self, file_path, track_index):
         output_base_dir = 'EEG_Plots_RAW'
         os.makedirs(output_base_dir, exist_ok=True)
         df = pd.read_csv(file_path)
@@ -155,26 +152,22 @@ class MainWindow(QMainWindow):
             ax.legend(loc='upper right')
         axes[-1].set_xlabel('Sample Index')
         output_dir = os.path.join(output_base_dir, f'Subject {self.subject.currentText()}',
-                                  f'track{self.current_track_index}')
+                                  f'track{track_index}')
         os.makedirs(output_dir, exist_ok=True)
         output_file_path = os.path.join(output_dir, f'{os.path.basename(file_path).replace(".csv", ".png")}')
         plt.savefig(output_file_path)
         plt.close()
-        print(f'Completed')
+        self.status_label.setText(f"Saved plot: {output_file_path}")
 
     def update_break_time(self):
 
         self.break_timer.stop()
         self.stop_music()
-        self.break_label.setText(f"Taking a break")
+        self.break_label.setText("Taking a break")
         self.track_timer.start(self.break_duration * 1000)
 
-        if self.data_acquisition_thread and self.data_acquisition_thread.isRunning():
-            file_path = self.data_acquisition_thread.latest_file_path
-            if file_path:  # Check if file path exists
-                self.generate_and_save_plot(file_path)  # Emit signal to generate and save plot
-
-        # Stop EEG data acquisition during the break
+        # Stop acquisition for the break. When the thread's run() finishes it emits
+        # plot_signal, which triggers generate_and_save_plot with the correct track index.
         if self.data_acquisition_thread and self.data_acquisition_thread.isRunning():
             self.data_acquisition_thread.stop()
 

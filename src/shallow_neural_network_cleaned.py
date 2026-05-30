@@ -239,10 +239,10 @@ def evaluate_model_performance(subjects, tracks, window_size):
         y_test = all_features_df['label'].values
 
         # Load the model
-        model = models.load_model(f'best_ann_model_{subject}_{window_size}.keras')  # Adjust path as necessary
+        model = models.load_model(f'models/best_ann_model_{subject}_{window_size}.keras')  # Adjust path as necessary
 
         # Load the corresponding scaler
-        scaler = load(f'scaler_{subject}_{window_size}.joblib')  # Ensure the correct scaler is loaded
+        scaler = load(f'models/scaler_{subject}_{window_size}.joblib')  # Ensure the correct scaler is loaded
         X_test_scaled = scaler.transform(X_test)
 
         # Ensure the features are consistent
@@ -576,14 +576,14 @@ def run_workflow(subjects, tracks, window_sizes=[1250], fs=125):
             X_train = scaler.fit_transform(X_train)
             X_val = scaler.transform(X_val)
             X_test = scaler.transform(X_test)
-            dump(scaler, f'scaler_{subject}_{window_size}.joblib')
+            dump(scaler, f'models/scaler_{subject}_{window_size}.joblib')
 
             # Build and train the model
             num_classes = len(np.unique(y_train))
             model = build_ann_model((X_train.shape[1],), num_classes)
 
             es = EarlyStopping(monitor='val_loss', mode='min', patience=80, verbose=1)
-            mc = ModelCheckpoint(f'best_ann_model_{subject}_{window_size}.keras', monitor='val_accuracy', mode='max',
+            mc = ModelCheckpoint(f'models/best_ann_model_{subject}_{window_size}.keras', monitor='val_accuracy', mode='max',
                                  save_best_only=True)
             reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=20, verbose=1, min_lr=1e-13)
 
